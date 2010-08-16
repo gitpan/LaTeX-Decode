@@ -4,9 +4,11 @@ MANIFEST
 README
 lib/LaTeX/Decode.pm
 lib/LaTeX/Decode/Data.pm
+bin/latex2utf8
 t/00-load.t
-t/manifest.t
 t/pod-coverage.t
 t/pod.t
 t/decode.t
+t/latex2utf8.t
+t/file.txt
 META.yml

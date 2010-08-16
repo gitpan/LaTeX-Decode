@@ -13,12 +13,12 @@ LaTeX::Decode - Decode from LaTeX to Unicode
 
 =head1 VERSION
 
-Version 0.02
+Version 0.03
 
 =cut
 
 use base qw(Exporter);
-our $VERSION = '0.02';
+our $VERSION = '0.03';
 our @EXPORT  = qw(latex_decode);
 use LaTeX::Decode::Data;
 use Unicode::Normalize;
@@ -42,7 +42,7 @@ Decodes the given text from LaTeX to Unicode.
 
 The function accepts a number of options:
 
-    * normalize => $bool (default 0)
+    * normalize => $bool (default 1)
         whether the output string should be normalized with Unicode::Normalize
 
     * normalization => <normalization form> (default 'NFC')
@@ -57,16 +57,16 @@ The function accepts a number of options:
 =head1 GLOBAL OPTIONS
 
 The decoding scheme can be set with
-  $LaTeX::Decode::DefaultScheme = '<name>';
-Possible values are 'base', 'extra' and 'full'; default value is 'extra'.
 
-TODO : explain these scheme!
+    $LaTeX::Decode::DefaultScheme = '<name>';
+
+Possible values are 'base', 'extra' and 'full'; default value is 'extra'.
 
 base  => Most common macros and diacritics (sufficient for Western languages
          and common symbols)
 
-extra => Also converts punctuation, larger range of diacritics and macros (e.g. for IPA, Latin Extended
-         Additional, etc.)
+extra => Also converts punctuation, larger range of diacritics and macros
+         (e.g. for IPA, Latin Extended Additional, etc.)
 
 full  => Also converts symbols, Greek letters, dingbats, negated symbols, and
          superscript characters and symbols ...
@@ -105,6 +105,8 @@ sub latex_decode {
     my $norm      = exists $opts{normalize} ? $opts{normalize} : 1;
     my $norm_form = exists $opts{normalization} ? $opts{normalization} : 'NFC';
     my $scheme    = exists $opts{scheme} ? $opts{scheme} : $DefaultScheme;
+    croak "invalid scheme name '$scheme'"
+        unless ( $scheme eq 'full' or $scheme eq 'base' or $scheme eq 'extra' );
     my $strip_outer_braces =
       exists $opts{strip_outer_braces} ? $opts{strip_outer_braces} : 0;
 
@@ -136,6 +138,11 @@ sub latex_decode {
     $text =~ s/(\\(?:$DIAC_RE_BASE|$ACCENTS_RE)){\\i}/$1\{i\}/g;
            # special cases such as '\={\i}' -> '\={i}' -> "i\x{304}"
 
+    ## remove {} around macros that print one character
+    ## by default we skip that, as it would break constructions like \foo{\i}
+    if ($strip_outer_braces) {
+        $text =~ s/ \{\\($WORDMAC_RE)\} / $WORDMAC{$1} /gxe;
+    }
     $text =~ s/ \\($WORDMAC_RE)(?: \{\} | \s+ | \b) / $WORDMAC{$1} /gxe;
 
     $text =~ s/\\($ACCENTS_RE)\{(\p{L}\p{M}*)\}/$2 . $ACCENTS{$1}/ge;
@@ -150,9 +157,14 @@ sub latex_decode {
 
     $text =~ s/\\($ACCENTS_RE)(\p{L}\p{M}*)/$2 . $ACCENTS{$1}/ge;
 
+    $text =~ s/\\($DIAC_RE)\s*\{(\p{L}\p{M}*)\}/$2 . $DIAC{$1}/ge;
+
+    $text =~ s/\\($DIAC_RE)\s+(\p{L}\p{M}*)/$2 . $DIAC{$1}/ge;
+
+    ## remove {} around letter+combining mark(s)
     ## by default we skip that, as it would destroy constructions like \foo{\`e}
     if ($strip_outer_braces) {
-        $text =~ s/{(\PM\pM+)}/$1/g; # remove {} around letter+combining mark(s)
+        $text =~ s/{(\PM\pM+)}/$1/g;
     }
 
     if ($norm) {
@@ -179,8 +191,12 @@ I make changes.
 
 Copyright 2009-2010 François Charette, all rights reserved.
 
-This program is free software; you can redistribute it and/or modify it
-under the same terms as Perl itself.
+This module is free software.  You can redistribute it and/or
+modify it under the terms of the Artistic License 2.0.
+
+This program is distributed in the hope that it will be useful,
+but without any warranty; without even the implied warranty of
+merchantability or fitness for a particular purpose.
 
 =cut
 
